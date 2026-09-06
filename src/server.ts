@@ -73,18 +73,14 @@ app.get('/health', (_req, res) => {
 
 app.get('/api/exercises/logic/random', (_req, res) => {
   const row = db
-    .prepare(
-      'SELECT id, question, options_json, correct_option, explanation FROM logic_tasks ORDER BY RANDOM() LIMIT 1',
-    )
-    .get() as
-    | {
-        id: number;
-        question: string;
-        options_json: string;
-        correct_option: string;
-        explanation: string;
-      }
-    | undefined;
+    .query('SELECT * FROM logic_tasks ORDER BY RANDOM() LIMIT 1')
+    .get() as {
+    id: number;
+    question: string;
+    options_json: string;
+    correct_option: string;
+    explanation: string;
+  } | undefined;
 
   if (!row) {
     res.status(404).json({ error: 'logic_empty' });
@@ -102,18 +98,14 @@ app.get('/api/exercises/logic/random', (_req, res) => {
 
 app.get('/api/exercises/mednick/random', (_req, res) => {
   const row = db
-    .prepare(
-      'SELECT id, word1, word2, word3, valid_answers_json FROM mednick_tasks ORDER BY RANDOM() LIMIT 1',
-    )
-    .get() as
-    | {
-        id: number;
-        word1: string;
-        word2: string;
-        word3: string;
-        valid_answers_json: string;
-      }
-    | undefined;
+    .query('SELECT * FROM mednick_tasks ORDER BY RANDOM() LIMIT 1')
+    .get() as {
+    id: number;
+    word1: string;
+    word2: string;
+    word3: string;
+    valid_answers_json: string;
+  } | undefined;
 
   if (!row) {
     res.status(404).json({ error: 'mednick_empty' });
@@ -128,9 +120,10 @@ app.get('/api/exercises/mednick/random', (_req, res) => {
 });
 
 app.get('/api/exercises/soobrazhariy/pack', (_req, res) => {
-  const rows = db
-    .prepare('SELECT id, name FROM categories ORDER BY RANDOM() LIMIT 20')
-    .all() as { id: number; name: string }[];
+  const rows = db.query('SELECT id, name FROM categories ORDER BY RANDOM() LIMIT 20').all() as {
+    id: number;
+    name: string;
+  }[];
 
   res.json({
     count: rows.length,

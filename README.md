@@ -9,17 +9,16 @@
 - `src/db.ts` — схема, `seed()`, путь к `database.sqlite`
 - `src/server.ts` — Express и JSON API
 
-## Ubuntu
+## Запуск (Node 22.5+, лучше 24)
+
+SQLite — встроенный модуль `node:sqlite`, без npm-драйверов и без компиляции.
 
 ```bash
-sudo apt-get install -y build-essential python3
 cd /opt/cognitive-battery-api
 cp .env.example .env
 npm install
 npm start
 ```
-
-На Windows для `better-sqlite3` нужен Visual Studio Build Tools (C++). На сервере достаточно `build-essential`.
 
 `.env`: `PORT=4000`, `HOST=127.0.0.1` — не пересекается с 80/443 и MQTT 1883. Снаружи — nginx `proxy_pass http://127.0.0.1:4000`.
 

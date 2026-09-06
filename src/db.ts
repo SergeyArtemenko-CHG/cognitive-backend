@@ -1,12 +1,18 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Database from 'better-sqlite3';
+import { DatabaseSync as Database } from 'node:sqlite';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DATABASE_FILE = path.join(projectRoot, 'database.sqlite');
 
-export type AppDb = Database.Database;
+/** Node 24 class is DatabaseSync; query() is an alias of prepare(). */
+export type AppDb = Database & {
+  query: Database['prepare'];
+};
+
+function sqlQuote(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
 
 const LOGIC_TASKS = [
   {
@@ -83,7 +89,7 @@ const CATEGORIES = [
   'Части тела',
 ] as const;
 
-function migrate(db: AppDb): void {
+export function seed(db: AppDb): boolean {
   db.exec(`
     CREATE TABLE IF NOT EXISTS logic_tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,50 +112,44 @@ function migrate(db: AppDb): void {
       name TEXT NOT NULL UNIQUE
     );
   `);
-}
 
-export function seed(db: AppDb): boolean {
-  const row = db.prepare('SELECT COUNT(*) AS n FROM logic_tasks').get() as { n: number };
-  if (row.n > 0) {
+  const existing = db.query('SELECT COUNT(*) AS n FROM logic_tasks').get() as
+    | { n: number }
+    | undefined;
+  if ((existing?.n ?? 0) > 0) {
     return false;
   }
 
-  const insertLogic = db.prepare(
-    'INSERT INTO logic_tasks (question, options_json, correct_option, explanation) VALUES (?, ?, ?, ?)',
-  );
-  const insertMednick = db.prepare(
-    'INSERT INTO mednick_tasks (word1, word2, word3, valid_answers_json) VALUES (?, ?, ?, ?)',
-  );
-  const insertCategory = db.prepare('INSERT INTO categories (name) VALUES (?)');
+  const logicValues = LOGIC_TASKS.map((task) => {
+    return `(${sqlQuote(task.question)}, ${sqlQuote(JSON.stringify(task.options))}, ${sqlQuote(task.correctOption)}, ${sqlQuote(task.explanation)})`;
+  }).join(',\n');
 
-  const fill = db.transaction(() => {
-    for (const task of LOGIC_TASKS) {
-      insertLogic.run(
-        task.question,
-        JSON.stringify(task.options),
-        task.correctOption,
-        task.explanation,
-      );
-    }
-    for (const task of MEDNICK_TASKS) {
-      insertMednick.run(task.word1, task.word2, task.word3, JSON.stringify(task.answers));
-    }
-    for (const name of CATEGORIES) {
-      insertCategory.run(name);
-    }
-  });
+  const mednickValues = MEDNICK_TASKS.map((task) => {
+    return `(${sqlQuote(task.word1)}, ${sqlQuote(task.word2)}, ${sqlQuote(task.word3)}, ${sqlQuote(JSON.stringify(task.answers))})`;
+  }).join(',\n');
 
-  fill();
+  const categoryValues = CATEGORIES.map((name) => `(${sqlQuote(name)})`).join(',\n');
+
+  db.exec(`
+    INSERT INTO logic_tasks (question, options_json, correct_option, explanation)
+    VALUES ${logicValues};
+
+    INSERT INTO mednick_tasks (word1, word2, word3, valid_answers_json)
+    VALUES ${mednickValues};
+
+    INSERT INTO categories (name)
+    VALUES ${categoryValues};
+  `);
+
   return true;
 }
 
 export function openDatabase(): { db: AppDb; seeded: boolean } {
-  fs.mkdirSync(path.dirname(DATABASE_FILE), { recursive: true });
-  const db = new Database(DATABASE_FILE);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma('busy_timeout = 3000');
-  migrate(db);
+  const db = new Database(DATABASE_FILE) as AppDb;
+  db.query = db.prepare.bind(db);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA busy_timeout = 3000');
   const seeded = seed(db);
   return { db, seeded };
 }
