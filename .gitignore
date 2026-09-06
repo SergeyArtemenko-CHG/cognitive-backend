@@ -1,6 +1,6 @@
 ﻿node_modules/
 dist/
-database.sqlite
+database.sqlite*
 .env
 .cache/
 C:/G
